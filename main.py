@@ -41,15 +41,18 @@ def get_db_port():
 
 # Initialize connection pool globally
 db_pool = None
+pool_error = None
 
 def init_db_pool():
-    global db_pool
+    global db_pool, pool_error
     if db_pool is not None:
         return db_pool
 
     try:
         db_url = os.getenv('DATABASE_URL')
         if db_url:
+            if "sslmode=" not in db_url:
+                db_url = db_url + ("&sslmode=require" if "?" in db_url else "?sslmode=require")
             db_pool = SimpleConnectionPool(1, 10, db_url)
         else:
             db_pool = SimpleConnectionPool(
@@ -60,9 +63,11 @@ def init_db_pool():
                 dbname=os.getenv('DB_NAME', 'postgres').strip(),
                 port=get_db_port()
             )
+        pool_error = None
         print("Database connection pool created successfully")
         return db_pool
-    except Error as e:
+    except Exception as e: # Catch all exceptions, not just psycopg2.Error
+        pool_error = str(e)
         print(f"Error creating connection pool: {e}")
         return None
 
@@ -154,11 +159,11 @@ class PooledConnection:
 
 # ============ DATABASE CONNECTION ============
 def get_db():
-    global db_pool
+    global db_pool, pool_error
     if db_pool is None:
         db_pool = init_db_pool()
         if db_pool is None:
-            raise HTTPException(status_code=500, detail="Database connection pool not initialized.")
+            raise HTTPException(status_code=500, detail=f"Database connection pool not initialized. Reason: {pool_error}")
     
     try:
         conn = db_pool.getconn()
