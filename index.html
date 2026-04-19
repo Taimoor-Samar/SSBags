@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>S.S BAGS - School Bags Store</title>
-    <link rel="stylesheet" href="UserPannel.css">
+    <link rel="stylesheet" href="UserPannel.css?v=5">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
@@ -29,9 +29,6 @@
                 <li><a href="#products" onclick="showSection('products')">Shop</a></li>
                 <li><a href="#collections" onclick="showSection('collections')">Collections</a></li>
                 <li><a href="#cart" onclick="showSection('cart')">Cart <span id="cart-count" class="cart-badge">0</span></a></li>
-                <li><a href="#orders" onclick="showSection('orders')">Orders</a></li>
-                <li id="auth-link"><a href="#auth" onclick="showSection('auth')">Login</a></li>
-                <li id="logout-link" style="display:none;"><a href="#" onclick="logout()">Logout</a></li>
             </ul>
             <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
                 <i data-feather="menu"></i>
@@ -74,7 +71,8 @@
 
             <!-- Features Section -->
             <div class="features-section">
-                <video class="features-video" autoplay muted loop playsinline>
+                <!-- Restored source tags -->
+                <video class="features-video" autoplay muted loop playsinline id="bg-video">
                     <source src="Images/background.mp4" type="video/mp4">
                 </video>
                 <div class="features-header">
@@ -130,90 +128,6 @@
             </div>
         </section>
 
-        <!-- Authentication Section -->
-        <section id="auth" class="section">
-            <div id="auth-section">
-                <div class="auth-card">
-                    <!-- Brand Logo -->
-                    <img src="Images/logo.jpg" alt="S.S BAGS Logo" class="auth-logo">
-                    
-                    <div id="login-form">
-                        <h2>Welcome Back!</h2>
-                        <p>Bag the best deals today 🎒</p>
-                        <div class="input-group">
-                            <i data-feather="mail" class="input-icon"></i>
-                            <input type="email" id="login-email" placeholder="Email Address">
-                        </div>
-                        <div class="input-group">
-                            <i data-feather="lock" class="input-icon"></i>
-                            <input type="password" id="login-password" placeholder="Password">
-                        </div>
-                        <button class="auth-btn" onclick="login()">Login to Shop</button>
-                        <div class="toggle-auth">
-                            <a href="#" onclick="toggleAuth('forgot-password')" style="color: #666; font-size: 0.9rem; margin-bottom: 10px; display: inline-block;">Forgot Password?</a><br>
-                            New here? <a href="#" onclick="toggleAuth('register')">Create an Account</a>
-                        </div>
-                    </div>
-
-                    <div id="register-form" style="display:none;">
-                        <h2>Join S.S BAGS</h2>
-                        <p>Start your school bags shopping journey 🎒</p>
-                        <div class="input-group">
-                            <i data-feather="user" class="input-icon"></i>
-                            <input type="text" id="reg-name" placeholder="Full Name">
-                        </div>
-                        <div class="input-group">
-                            <i data-feather="mail" class="input-icon"></i>
-                            <input type="email" id="reg-email" placeholder="Email Address">
-                        </div>
-
-                        <div class="input-group">
-                            <i data-feather="lock" class="input-icon"></i>
-                            <input type="password" id="reg-password" placeholder="Create Password">
-                        </div>
-                        <div class="input-group">
-                            <i data-feather="lock" class="input-icon"></i>
-                            <input type="password" id="reg-confirm" placeholder="Confirm Password">
-                        </div>
-                        <button class="auth-btn" onclick="register()">Create Account</button>
-                        <div class="toggle-auth">
-                            Already a member? <a href="#" onclick="toggleAuth('login')">Login Now</a>
-                        </div>
-                    </div>
-
-                    <div id="forgot-password-form" style="display:none;">
-                        <h2>Reset Password</h2>
-                        <p>Enter your email to receive a reset link</p>
-                        <div class="input-group">
-                            <i data-feather="mail" class="input-icon"></i>
-                            <input type="email" id="forgot-email" placeholder="Email Address">
-                        </div>
-                        <button class="auth-btn" onclick="forgotPassword()">Send Reset Link</button>
-                        <div class="toggle-auth">
-                            Remember your password? <a href="#" onclick="toggleAuth('login')">Back to Login</a>
-                        </div>
-                    </div>
-
-                    <div id="reset-password-form" style="display:none;">
-                        <h2>New Password</h2>
-                        <p>Create a strong new password</p>
-                        <div class="input-group">
-                            <i data-feather="lock" class="input-icon"></i>
-                            <input type="password" id="reset-new-password" placeholder="New Password">
-                        </div>
-                        <div class="input-group">
-                            <i data-feather="lock" class="input-icon"></i>
-                            <input type="password" id="reset-confirm-password" placeholder="Confirm Password">
-                        </div>
-                        <button class="auth-btn" onclick="resetPassword()">Update Password</button>
-                        <div class="toggle-auth">
-                            <a href="#" onclick="toggleAuth('login')">Back to Login</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <!-- Products Section -->
         <section id="products" class="section">
             <div class="products-header">
@@ -266,11 +180,7 @@
             </div>
         </section>
 
-        <!-- Orders Section -->
-        <section id="orders" class="section">
-            <h2>My Orders</h2>
-            <div id="orders-list" class="orders-list"></div>
-        </section>
+        <!-- Removed Orders Section -->
     </div>
 
     <footer>
@@ -295,7 +205,6 @@
                     <li><a href="#" onclick="showSection('home')">Home</a></li>
                     <li><a href="#" onclick="showSection('products')">Shop</a></li>
                     <li><a href="#" onclick="showSection('collections')">Collections</a></li>
-                    <li><a href="#" onclick="showSection('orders')">Track Order</a></li>
                 </ul>
             </div>
             

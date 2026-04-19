@@ -5,9 +5,10 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
 import jwt  # PyJWT (NOT the jwt library)
 import bcrypt
-import mysql.connector
-from mysql.connector import Error
-from mysql.connector.pooling import MySQLConnectionPool
+import psycopg2
+from psycopg2 import Error
+from psycopg2.pool import SimpleConnectionPool
+from psycopg2.extras import RealDictCursor
 from typing import List, Optional
 import json
 import os
@@ -19,9 +20,6 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi import Request
-import aiosmtplib
-from email.message import EmailMessage
-from fastapi.responses import RedirectResponse
 
 # Load environment variables
 load_dotenv()
@@ -35,61 +33,37 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 def get_db_port():
-    port_str = os.getenv('DB_PORT', '3306')
+    port_str = os.getenv('DB_PORT', '5432')
     try:
-        return int(port_str) if port_str else 3306
+        return int(port_str) if port_str else 5432
     except ValueError:
-        return 3306
-
-DATABASE_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost').strip(),
-    'user': os.getenv('DB_USER', 'root').strip(),
-    'password': os.getenv('DB_PASSWORD', 'root').strip(),
-    'database': os.getenv('DB_NAME', 'ss_bags').strip(),
-    'port': get_db_port()
-}
-
-# Add SSL config if provided (required for Aiven)
-ssl_ca = os.getenv('DB_SSL_CA')
-if ssl_ca:
-    # Handling SSL for Aiven (Vercel environments often provide CA as a string)
-    if "-----BEGIN CERTIFICATE-----" in ssl_ca:
-        ca_path = "/tmp/ca.pem"
-        try:
-            with open(ca_path, "w") as f:
-                f.write(ssl_ca)
-            DATABASE_CONFIG['ssl_ca'] = ca_path
-        except Exception as e:
-            print(f"Warning: Could not write CA certificate to {ca_path}: {e}")
-    else:
-        DATABASE_CONFIG['ssl_ca'] = ssl_ca
-    
-    # Aiven often requires verify_identity as well
-    if os.getenv('DB_SSL_VERIFY_IDENTITY', 'false').lower() == 'true':
-        DATABASE_CONFIG['ssl_verify_identity'] = True
+        return 5432
 
 # Initialize connection pool globally
 db_pool = None
 
 def init_db_pool():
     global db_pool
-    # Only initialize if not already initialized
     if db_pool is not None:
         return db_pool
 
     try:
-        db_pool = MySQLConnectionPool(
-            pool_name="mypool",
-            pool_size=10,
-            pool_reset_session=True,
-            **DATABASE_CONFIG
-        )
+        db_url = os.getenv('DATABASE_URL')
+        if db_url:
+            db_pool = SimpleConnectionPool(1, 10, db_url)
+        else:
+            db_pool = SimpleConnectionPool(
+                1, 10,
+                host=os.getenv('DB_HOST', 'localhost').strip(),
+                user=os.getenv('DB_USER', 'postgres').strip(),
+                password=os.getenv('DB_PASSWORD', 'postgres').strip(),
+                dbname=os.getenv('DB_NAME', 'postgres').strip(),
+                port=get_db_port()
+            )
         print("Database connection pool created successfully")
         return db_pool
     except Error as e:
         print(f"Error creating connection pool: {e}")
-        # We don't exit(1) here because it crashes the Vercel function
-        # Instead, we let get_db handle the error
         return None
 
 # Initial attempt to create pool
@@ -136,38 +110,6 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 # ============ MODELS ============
 from pydantic import BaseModel, EmailStr, validator
 
-class UserRegister(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
-
-    @validator('password')
-    def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(char.isalpha() for char in v) or not any(char.isdigit() for char in v):
-            raise ValueError("Password must contain at least one letter and one number")
-        return v
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
-    @validator('new_password')
-    def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(char.isalpha() for char in v) or not any(char.isdigit() for char in v):
-            raise ValueError("Password must contain at least one letter and one number")
-        return v
-
 class AdminLogin(BaseModel):
     email: EmailStr
     password: str
@@ -196,19 +138,32 @@ class CreateOrder(BaseModel):
 class UpdateOrderStatus(BaseModel):
     status: str
 
+# Wrapper so psycopg2 behaves like mysql-connector w.r.t closing the connection
+class PooledConnection:
+    def __init__(self, conn, pool):
+        self.conn = conn
+        self.pool = pool
+    def cursor(self, *args, **kwargs):
+        return self.conn.cursor(*args, **kwargs)
+    def commit(self):
+        self.conn.commit()
+    def rollback(self):
+        self.conn.rollback()
+    def close(self):
+        self.pool.putconn(self.conn)
+
 # ============ DATABASE CONNECTION ============
 def get_db():
     global db_pool
     if db_pool is None:
-        # Try to re-initialize if it failed before
         db_pool = init_db_pool()
         if db_pool is None:
-            raise HTTPException(status_code=500, detail="Database connection pool not initialized. Check your environment variables and Aiven connection.")
+            raise HTTPException(status_code=500, detail="Database connection pool not initialized.")
     
     try:
-        conn = db_pool.get_connection()
+        conn = db_pool.getconn()
         conn.autocommit = False
-        return conn
+        return PooledConnection(conn, db_pool)
     except Error as e:
         raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
 
@@ -237,235 +192,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-# ============ EMAIL UTILITY ============
-async def send_email(to_email: str, subject: str, body: str):
-    smtp_server = os.getenv("SMTP_SERVER")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    
-    if not smtp_server or not smtp_user or not smtp_password:
-        print(f"WARNING: Email not configured. Would have sent: {subject} to {to_email}")
-        print(f"Body: {body}")
-        return False
-        
-    message = EmailMessage()
-    message["From"] = smtp_user
-    message["To"] = to_email
-    message["Subject"] = subject
-    message.set_content(body)
-    
-    try:
-        await aiosmtplib.send(
-            message,
-            hostname=smtp_server,
-            port=smtp_port,
-            start_tls=True,
-            username=smtp_user,
-            password=smtp_password,
-        )
-        return True
-    except Exception as e:
-        print(f"Error sending email: {str(e)}")
-        return False
-
-# ============ AUTH ENDPOINTS ============
-@app.options("/api/auth/register")
-async def register_options():
-    from starlette.responses import Response
-    response = Response()
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
-
-@app.post("/api/auth/register")
-@limiter.limit("5/minute")
-async def register(request: Request, user: UserRegister):
-    print(f"Registration attempt for: {user.email}")  # Debug print
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    
-    try:
-        cursor.execute("SELECT id FROM users WHERE email = %s", (user.email,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="Email already registered")
-        
-        hashed_pwd = hash_password(user.password)
-        # Generate verification token
-        verify_token_str = create_token({"sub": user.email, "type": "verify_email"}, timedelta(hours=24))
-        
-        cursor.execute(
-            "INSERT INTO users (name, email, password, is_verified, created_at) VALUES (%s, %s, %s, FALSE, %s)",
-            (user.name, user.email, hashed_pwd, datetime.now())
-        )
-        conn.commit()
-        
-        # Send verification email asynchronously
-        verification_link = f"{os.getenv('FRONTEND_URL', 'http://127.0.0.1:5500')}/?verify_token={verify_token_str}"
-        email_body = f"Hello {user.name},\\n\\nPlease verify your S.S BAGS School Bags account by clicking the link below:\\n{verification_link}\\n\\nThis link will expire in 24 hours."
-        await send_email(user.email, "Verify Your S.S BAGS School Bags Account", email_body)
-        
-        return {"message": "Registration successful. Please check your email to verify your account."}
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Error as e:
-        conn.rollback()
-        print(f"Database error in registration: {str(e)}")  # Debug print
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.options("/api/auth/login")
-async def login_options():
-    from starlette.responses import Response
-    response = Response()
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
-
-@app.post("/api/auth/login")
-@limiter.limit("10/minute")
-async def login(request: Request, user: UserLogin):
-    print(f"Login attempt for: {user.email}")  # Debug print
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    
-    try:
-        cursor.execute("SELECT id, name, email, password, is_verified FROM users WHERE email = %s", (user.email,))
-        db_user = cursor.fetchone()
-        
-        if not db_user or not verify_password(user.password, db_user['password']):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-            
-        if not db_user.get('is_verified', False):
-            # Fallback for old accounts without the is_verified column
-            if db_user.get('is_verified') is not None:
-                raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox for the verification link.")
-        
-        token = create_token({"sub": str(db_user['id']), "role": "user"})
-        
-        return {
-            "token": token,
-            "user": {
-                "id": db_user['id'],
-                "name": db_user['name'],
-                "email": db_user['email']
-            }
-        }
-    except HTTPException:
-        raise
-    except Error as e:
-        print(f"Database error in login: {str(e)}")  # Debug print
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.get("/api/auth/verify-email")
-async def verify_email(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") != "verify_email":
-            raise HTTPException(status_code=400, detail="Invalid token type")
-            
-        email = payload.get("sub")
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("UPDATE users SET is_verified = TRUE WHERE email = %s", (email,))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="User not found")
-            
-        conn.commit()
-        return {"message": "Email verified successfully"}
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=400, detail="Verification link expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=400, detail="Invalid verification link")
-    except Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-            conn.close()
-
-@app.post("/api/auth/forgot-password")
-@limiter.limit("3/minute")
-async def forgot_password(request: Request, payload: ForgotPasswordRequest):
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    
-    try:
-        cursor.execute("SELECT id, name FROM users WHERE email = %s", (payload.email,))
-        user = cursor.fetchone()
-        
-        if user:
-            # Generate 1 hour reset token
-            reset_token_str = create_token({"sub": payload.email, "type": "reset_password"}, timedelta(hours=1))
-            
-            # Save token to db for invalidation/replay protection
-            cursor.execute("UPDATE users SET reset_token = %s WHERE email = %s", (reset_token_str, payload.email))
-            conn.commit()
-            
-            reset_link = f"{os.getenv('FRONTEND_URL', 'http://127.0.0.1:5500')}/?reset_token={reset_token_str}"
-            email_body = f"Hello {user['name']},\\n\\nYou requested a password reset.\\nClick the link below to reset your password:\\n{reset_link}\\n\\nIf you did not request this, please ignore this email.\\nThis link expires in 1 hour."
-            
-            await send_email(payload.email, "Password Reset Request", email_body)
-            
-        # Always return success to prevent email enumeration (security best practice)
-        return {"message": "If that email is registered, a password reset link has been sent to it."}
-    except Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.post("/api/auth/reset-password")
-@limiter.limit("5/minute")
-async def reset_password(request: Request, payload: ResetPasswordRequest):
-    try:
-        token_payload = jwt.decode(payload.token, SECRET_KEY, algorithms=[ALGORITHM])
-        if token_payload.get("type") != "reset_password":
-            raise HTTPException(status_code=400, detail="Invalid token type")
-            
-        email = token_payload.get("sub")
-        conn = get_db()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Verify token matches database
-        cursor.execute("SELECT id, reset_token FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
-        
-        if not user or user['reset_token'] != payload.token:
-            raise HTTPException(status_code=400, detail="Invalid or previously used reset token")
-            
-        hashed_pwd = hash_password(payload.new_password)
-        
-        # Update password and clear reset token
-        cursor.execute("UPDATE users SET password = %s, reset_token = NULL WHERE email = %s", (hashed_pwd, email))
-        conn.commit()
-        
-        return {"message": "Password successfully reset. You can now log in."}
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=400, detail="Password reset link expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=400, detail="Invalid reset link")
-    except Error as e:
-        if 'conn' in locals():
-            conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-            conn.close()
+# ============ ADMIN AUTH ENDPOINTS ============
 
 @app.options("/api/admin/login")
 async def admin_login_options():
@@ -482,7 +209,7 @@ async def admin_login_options():
 async def admin_login(request: Request, admin: AdminLogin):
     print(f"Admin login attempt for: {admin.email}")  # Debug print
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute("SELECT id, email, password, role FROM admins WHERE email = %s", (admin.email,))
@@ -507,7 +234,7 @@ async def admin_login(request: Request, admin: AdminLogin):
 @app.get("/api/products")
 async def get_products():
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute(
@@ -540,7 +267,7 @@ async def create_product(product: Product, credentials: HTTPAuthorizationCredent
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         # Verify category_id exists
@@ -555,10 +282,10 @@ async def create_product(product: Product, credentials: HTTPAuthorizationCredent
         category_name = category_record['name'] if category_record else product.category
         
         cursor.execute(
-            "INSERT INTO products (name, description, price, stock, category, category_id, color, material, size, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "INSERT INTO products (name, description, price, stock, category, category_id, color, material, size, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
             (product.name, product.description, product.price, product.stock, category_name, product.category_id, product.color, product.material, product.size, datetime.now())
         )
-        product_id = cursor.lastrowid
+        product_id = cursor.fetchone()['id']
         conn.commit()
         return {"message": "Product created", "id": product_id}
     except Error as e:
@@ -577,7 +304,7 @@ async def update_product(product_id: int, product: Product, credentials: HTTPAut
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         # Verify category_id exists
@@ -636,7 +363,7 @@ async def upload_product_images(product_id: int, files: List[UploadFile] = File(
     
     # Check if product exists
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cursor.execute("SELECT id FROM products WHERE id = %s", (product_id,))
         product = cursor.fetchone()
@@ -720,7 +447,7 @@ async def upload_product_images(product_id: int, files: List[UploadFile] = File(
 @app.get("/api/products/{product_id}/images")
 async def get_product_images(product_id: int):
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute(
@@ -744,7 +471,7 @@ async def delete_product_image(product_id: int, image_id: int, credentials: HTTP
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         # Get image info before deleting
@@ -790,7 +517,7 @@ async def create_order(order: CreateOrder, credentials: HTTPAuthorizationCredent
     user_id = int(payload.get("sub"))
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         # TRANSACTION START
@@ -810,10 +537,10 @@ async def create_order(order: CreateOrder, credentials: HTTPAuthorizationCredent
         
         # Insert order
         cursor.execute(
-            "INSERT INTO orders (user_id, total_amount, status, delivery_address, created_at) VALUES (%s, %s, %s, %s, %s)",
+            "INSERT INTO orders (user_id, total_amount, status, delivery_address, created_at) VALUES (%s, %s, %s, %s, %s) RETURNING id",
             (user_id, order.total_amount, order.status, "Pakistan", datetime.now())
         )
-        order_id = cursor.lastrowid
+        order_id = cursor.fetchone()['id']
         
         # Insert order items and deduct stock
         for item in order.items:
@@ -867,7 +594,7 @@ async def get_user_orders(user_id: int, credentials: HTTPAuthorizationCredential
         raise HTTPException(status_code=403, detail="Forbidden. You can only view your own orders.")
 
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute(
@@ -899,7 +626,7 @@ async def get_admin_orders(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute(
@@ -962,7 +689,7 @@ async def get_users_stats(credentials: HTTPAuthorizationCredentials = Depends(se
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute("SELECT COUNT(*) as count FROM users")
@@ -983,7 +710,7 @@ async def get_products_stats(credentials: HTTPAuthorizationCredentials = Depends
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute("SELECT COUNT(*) as count FROM products")
@@ -1004,7 +731,7 @@ async def get_orders_stats(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         # Fixed: Include all delivered/shipped/confirmed orders
@@ -1026,7 +753,7 @@ async def get_customers(credentials: HTTPAuthorizationCredentials = Depends(secu
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute(
@@ -1078,7 +805,7 @@ async def get_reports(period: str = "daily", credentials: HTTPAuthorizationCrede
         raise HTTPException(status_code=403, detail="Not authorized - Admin only")
     
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         # Fixed: MySQL-compatible DATE_FORMAT instead of PostgreSQL DATE_TRUNC
@@ -1126,7 +853,7 @@ async def get_reports(period: str = "daily", credentials: HTTPAuthorizationCrede
 @app.get("/api/categories")
 async def get_categories():
     conn = get_db()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cursor.execute("SELECT id, name FROM categories WHERE status = 'active' ORDER BY name")

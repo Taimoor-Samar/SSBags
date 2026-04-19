@@ -80,7 +80,6 @@ const sampleProducts = [
 const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
     ? 'http://localhost:8000/api' 
     : '/api';
-let currentUser = JSON.parse(localStorage.getItem('user')) || null;
 let cart = JSON.parse(localStorage.getItem('cart')) || [];
 let products = [];
 let useSampleData = false;
@@ -108,28 +107,6 @@ async function loadCategoriesForFilter() {
             });
             console.log(`✅ Loaded ${data.categories.length} categories into filter`);
         }
-    } catch (error) {
-        console.warn('Could not load categories from API, using defaults.');
-    }
-}
-
-// Load categories for home page display
-async function loadCategoriesForHome() {
-    try {
-        const response = await fetch(`${API_BASE}/categories`);
-        const data = await response.json();
-        
-        const categoryGrid = document.querySelector('.category-grid');
-        
-        if (data.categories && data.categories.length > 0) {
-            categoryGrid.innerHTML = '';
-            
-            data.categories.forEach(category => {
-                const categoryCard = document.createElement('div');
-                categoryCard.className = 'cat-card';
-                categoryCard.onclick = () => setCategory(category.name);
-                
-                // Use category image if available, otherwise use placeholder
                 const imageUrl = category.image_url || `https://images.unsplash.com/photo-${getRandomImageId()}?auto=format&fit=crop&w=500&q=80`;
                 
                 categoryCard.innerHTML = `
@@ -199,12 +176,10 @@ function getRandomImageId() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    updateAuthUI();
     fetchProducts();
     loadCart();
     loadCategoriesForFilter();
     loadCategoriesForHome(); // Load categories for home page
-    if (currentUser) loadOrders();
     
     // Force load default categories to ensure they show up
     setTimeout(() => {
@@ -222,49 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize animations
     initializeAnimations();
     
-    // Check URL for email verification or password reset tokens
-    checkTokensInUrl();
-});
-
-// Auth routing via URL params
-function checkTokensInUrl() {
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    const verifyToken = urlParams.get('verify_token');
-    if (verifyToken) {
-        verifyEmail(verifyToken);
-    }
-    
-    const resetToken = urlParams.get('reset_token');
-    if (resetToken) {
-        // Automatically show the reset password form directly
-        showSection('auth');
-        toggleAuth('reset-password');
-        
-        // Temporarily store token so the form can use it later
-        document.getElementById('reset-password-form').dataset.token = resetToken;
-        
-        // Clean URL after capturing
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-}
-
-async function verifyEmail(token) {
-    try {
-        const response = await fetch(`${API_BASE}/auth/verify-email?token=${token}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            alert('Your email has been successfully verified! You can now log in.');
-        } else {
-            alert(data.detail || 'Email verification failed or link expired.');
-        }
-    } catch (error) {
-        alert('Verification error: ' + error.message);
-    } finally {
-        // Clean URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    // Removed tokens check as auth is removed
 }
 
 // Hero Slider Functions
@@ -339,196 +272,7 @@ function setCategory(category) {
 function setCollection(collection) {
     currentCollection = collection;
     showSection('products');
-    showToast(`Showing ${collection} collection`, 'success');
-}
-
-// ============ AUTHENTICATION ============
-function toggleAuth(formType) {
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('register-form').style.display = 'none';
-    
-    const forgotForm = document.getElementById('forgot-password-form');
-    const resetForm = document.getElementById('reset-password-form');
-    
-    // Forms might not exist depending on the HTML DOM version
-    if (forgotForm) forgotForm.style.display = 'none';
-    if (resetForm) resetForm.style.display = 'none';
-
-    if (formType === 'register') {
-        document.getElementById('register-form').style.display = 'block';
-    } else if (formType === 'forgot-password' && forgotForm) {
-        forgotForm.style.display = 'block';
-    } else if (formType === 'reset-password' && resetForm) {
-        resetForm.style.display = 'block';
-    } else {
-        document.getElementById('login-form').style.display = 'block';
-    }
-}
-
-async function register() {
-    const name = document.getElementById('reg-name').value.trim();
-    const email = document.getElementById('reg-email').value.trim();
-    const password = document.getElementById('reg-password').value;
-    const confirm = document.getElementById('reg-confirm').value;
-
-    if (!name || !email || !password || !confirm) {
-        alert('All fields required');
-        return;
-    }
-
-    if (password !== confirm) {
-        alert('Passwords do not match');
-        return;
-    }
-
-
-
-    try {
-        const response = await fetch(`${API_BASE}/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password })
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-            alert('Registration successful! Please login.');
-            toggleAuth('login');
-        } else {
-            let errorMsg = data.detail;
-            if (Array.isArray(errorMsg)) {
-                errorMsg = errorMsg.map(err => err.msg).join('\\n');
-            }
-            alert(errorMsg || 'Registration failed');
-        }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-}
-
-async function login() {
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-
-    if (!email || !password) {
-        alert('Email and password required');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-            currentUser = data.user;
-            localStorage.setItem('user', JSON.stringify(currentUser));
-            localStorage.setItem('token', data.token);
-            updateAuthUI();
-            alert('Login successful!');
-            showSection('home');
-            loadOrders();
-        } else {
-            let errorMsg = data.detail;
-            if (Array.isArray(errorMsg)) {
-                errorMsg = errorMsg.map(err => err.msg).join(', ');
-            }
-            alert(errorMsg || 'Login failed');
-        }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-}
-
-async function forgotPassword() {
-    const email = document.getElementById('forgot-email').value.trim();
-    if (!email) {
-        alert('Please enter your email address');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/auth/forgot-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-            alert(data.message || 'If you are registered, a password reset email has been sent to you.');
-            toggleAuth('login');
-        } else {
-            alert(data.detail || 'Failed to request password reset');
-        }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-}
-
-async function resetPassword() {
-    const password = document.getElementById('reset-new-password').value;
-    const confirm = document.getElementById('reset-confirm-password').value;
-    const token = document.getElementById('reset-password-form').dataset.token;
-
-    if (!password || !confirm) {
-        alert('All fields required');
-        return;
-    }
-
-    if (password !== confirm) {
-        alert('Passwords do not match');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/auth/reset-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, new_password: password })
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-            alert('Password reset successfully! Please login with your new password.');
-            toggleAuth('login');
-        } else {
-            let errorMsg = data.detail;
-            if (Array.isArray(errorMsg)) {
-                errorMsg = errorMsg.map(err => err.msg).join('\\n');
-            }
-            alert(errorMsg || 'Password reset failed');
-        }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-}
-
-function logout() {
-    currentUser = null;
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    updateAuthUI();
-    cart = [];
-    localStorage.removeItem('cart');
-    alert('Logged out successfully');
-    showSection('home');
-}
-
-function updateAuthUI() {
-    const authLink = document.getElementById('auth-link');
-    const logoutLink = document.getElementById('logout-link');
-
-    if (currentUser) {
-        authLink.style.display = 'none';
-        logoutLink.style.display = 'block';
-    } else {
-        authLink.style.display = 'block';
-        logoutLink.style.display = 'none';
-    }
+    showToast(`Showing ${collection} collection`, 'success');// Authentication system has been removed
 }
 
 // ============ NAVIGATION ============
@@ -540,19 +284,6 @@ function showSection(sectionId) {
 
 // ============ PRODUCTS ============
 async function fetchProducts() {
-    try {
-        const response = await fetch(`${API_BASE}/products`);
-        const data = await response.json();
-        products = data.products || [];
-        displayProducts(products);
-    } catch (error) {
-        console.error('Error fetching products:', error);
-        document.getElementById('products-list').innerHTML = '<p>Error loading products</p>';
-    }
-}
-
-function displayProducts(items) {
-    const list = document.getElementById('products-list');
     
     if (items.length === 0) {
         list.innerHTML = '<p>No products found</p>';
@@ -582,14 +313,8 @@ function displayProducts(items) {
     }
 }
 
-// ============ ORDERS ============
+// ============ ORDERS (VIA WHATSAPP) ============
 async function proceedToOrder() {
-    if (!currentUser) {
-        showToast('Please login first', 'error');
-        showSection('auth');
-        return;
-    }
-
     if (cart.length === 0) {
         showToast('Your cart is empty', 'error');
         return;
@@ -598,26 +323,6 @@ async function proceedToOrder() {
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const delivery = subtotal >= 5000 ? 0 : 250;
     const total = subtotal + delivery;
-
-    const orderDetails = cart.map(item => `${item.name} (Qty: ${item.quantity}) - Rs. ${item.price * item.quantity}`).join('\n');
-    
-    const message = `New Order from S.S BAGS:\n\n${orderDetails}\n\nSubtotal: Rs. ${subtotal}\nDelivery: ${delivery === 0 ? 'FREE' : `Rs. ${delivery}`}\nTotal: Rs. ${total}\n\nName: ${currentUser?.name || 'Guest'}\nEmail: ${currentUser?.email || 'Not provided'}`;
-    
-    const WHATSAPP_SHOP_NUMBER = '923150024508';
-    const whatsappUrl = `https://wa.me/${WHATSAPP_SHOP_NUMBER}?text=${encodeURIComponent(message)}`;
-    
-    window.open(whatsappUrl, '_blank');
-    
-    // Clear cart after order
-    cart = [];
-    localStorage.removeItem('cart');
-    updateCartUI();
-    showToast('Order placed successfully! Check WhatsApp to confirm. Thank you for shopping at S.S BAGS!', 'success');
-    showSection('orders');
-}
-
-async function loadOrders() {
-    if (!currentUser) return;
 
     try {
         const response = await fetch(`${API_BASE}/orders/user/${currentUser.id}`, {

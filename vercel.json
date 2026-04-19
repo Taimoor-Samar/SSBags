@@ -28,8 +28,16 @@
       "dest": "main.py"
     },
     {
-      "src": "/uploads/(.*)",
-      "dest": "/uploads/$1"
+      "src": "/docs",
+      "dest": "main.py"
+    },
+    {
+      "src": "/openapi.json",
+      "dest": "main.py"
+    },
+    {
+      "src": "/Admin",
+      "dest": "/AdminPannel.html"
     },
     {
       "src": "/(.*)",

@@ -5,9 +5,6 @@ __pycache__/
 venv/
 .env
 
-# Vercel
-.vercel
-
 # Project specific
 uploads/*
 !uploads/.gitkeep
