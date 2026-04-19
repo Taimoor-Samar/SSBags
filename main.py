@@ -874,6 +874,34 @@ async def get_categories():
 async def health_check():
     return {"status": "API is running"}
 
+@app.get("/api/setup-admin")
+async def setup_admin():
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        email = "raotaimoor652@gmail.com"
+        # Pure native Vercel backend hashing
+        hashed_pw = hash_password("RaoNisa768")
+        
+        cursor.execute("SELECT id FROM admins WHERE email = %s", (email,))
+        if cursor.fetchone():
+            cursor.execute("UPDATE admins SET password = %s WHERE email = %s", (hashed_pw, email))
+            msg = "Admin password updated."
+        else:
+            cursor.execute(
+                "INSERT INTO admins (name, email, password, role) VALUES (%s, %s, %s, %s)",
+                ("Admin Taimoor", email, hashed_pw, "admin")
+            )
+            msg = "Admin account created."
+        conn.commit()
+        return {"status": "success", "message": msg, "email": email, "password": "RaoNisa768"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
