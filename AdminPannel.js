@@ -300,8 +300,10 @@ function clearProductForm() {
     document.getElementById('product-color').value = '';
     document.getElementById('product-material').value = '';
     document.getElementById('product-size').value = '';
-    document.getElementById('product-images').value = '';
-    document.getElementById('image-preview-container').innerHTML = '';
+    const imageInput = document.getElementById('product-images');
+    if (imageInput) imageInput.value = '';
+    const imgPreview = document.getElementById('image-preview-container');
+    if (imgPreview) imgPreview.innerHTML = '';
 }
 
 async function loadProducts() {
@@ -506,7 +508,8 @@ async function saveProduct() {
     const color = document.getElementById('product-color').value.trim();
     const material = document.getElementById('product-material').value.trim();
     const size = document.getElementById('product-size').value.trim();
-    const imageFiles = document.getElementById('product-images').files;
+    const imageInput = document.getElementById('product-images');
+    const imageFiles = imageInput ? imageInput.files : [];
         
     // Convert category name to category_id
     const categorySelect = document.getElementById('product-category');

@@ -243,7 +243,7 @@ async def get_products():
     
     try:
         cursor.execute(
-            "SELECT p.id, p.name, p.description, p.price, p.stock, p.category, p.category_id, p.color, p.material, p.size, p.created_at, (SELECT GROUP_CONCAT(image_url) FROM product_images WHERE product_id = p.id) as image_urls FROM products p WHERE p.stock > 0"
+            "SELECT p.id, p.name, p.description, p.price, p.stock, p.category, p.category_id, p.color, p.material, p.size, p.created_at, (SELECT STRING_AGG(image_url, ',') FROM product_images WHERE product_id = p.id) as image_urls FROM products p WHERE p.stock > 0"
         )
         products = cursor.fetchall()
         
