@@ -480,8 +480,15 @@ footer {
 
 /* ============ RESPONSIVE ============ */
 @media (max-width: 1024px) {
+    .navbar .container {
+        flex-direction: column;
+        gap: 12px;
+    }
     .navbar .nav-menu {
-        display: none;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
     }
 }
 
