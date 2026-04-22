@@ -115,7 +115,7 @@ async function loadCategoriesForFilter() {
                 `;
                 
                 categoryGrid.appendChild(categoryCard);
-            });
+// removed });
         }
     } catch(e) {}
 }
