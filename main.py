@@ -103,15 +103,16 @@ app.add_middleware(
 )
 
 # Create uploads directory if it doesn't exist
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = "/tmp/uploads"
 try:
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-except OSError:
-    # Fallback for Vercel's read-only filesystem
-    UPLOAD_DIR = "/tmp/uploads"
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+except OSError as e:
+    print(f"Warning: Could not create upload dir: {e}")
 
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+try:
+    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+except Exception:
+    pass  # uploads directory may not exist yet
 
 # ============ MODELS ============
 from pydantic import BaseModel, EmailStr, validator
@@ -415,14 +416,17 @@ async def upload_product_images(product_id: int, files: List[UploadFile] = File(
             
             # Generate secure, unique filename
             filename = f"{uuid.uuid4().hex}.{ext}"
-            filepath = os.path.join("uploads", filename)
+            filepath = os.path.join(UPLOAD_DIR, filename)
             
-            # Save file
+            # Save file to temp directory
             with open(filepath, "wb") as f:
                 f.write(contents)
             
-            # Store image record in database
-            image_url = f"/uploads/{filename}"
+            # Store base64 data URL in database so image persists
+            import base64
+            mime = 'image/jpeg' if ext in ('jpg','jpeg') else f'image/{ext}'
+            b64 = base64.b64encode(contents).decode('utf-8')
+            image_url = f"data:{mime};base64,{b64}"
             is_primary = (i == 0)  # First image is primary
             
             cursor.execute(
