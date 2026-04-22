@@ -116,20 +116,39 @@ async function loadCategoriesForFilter() {
                 
                 categoryGrid.appendChild(categoryCard);
             });
+        }
+    } catch(e) {}
+}
+async function loadCategoriesForHome() {
+    const categoryGrid = document.querySelector('.category-grid');
+    if (!categoryGrid) return;
+    try {
+        const response = await fetch(`${API_BASE}/categories`);
+        const data = await response.json();
+        if (data.categories && data.categories.length > 0) {
+            categoryGrid.innerHTML = '';
+            data.categories.forEach(category => {
+                const categoryCard = document.createElement('div');
+                categoryCard.className = 'category-card fade-in';
+                const imageUrl = category.image_url || `https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80`;
+                categoryCard.innerHTML = `<img src="${imageUrl}" alt="${category.name}"><div class="cat-info"><h3>${category.name}</h3></div>`;
+                categoryCard.onclick = () => {
+                    const filter = document.getElementById('category-filter');
+                    if (filter) filter.value = category.name;
+                    showSection('products');
+                    renderProducts(category.name);
+                };
+                categoryGrid.appendChild(categoryCard);
+            });
         } else {
-            // Fallback to default categories if API fails
             loadDefaultCategories();
         }
-    } catch (error) {
-        console.error('Error loading categories for home:', error);
-        // Fallback to default categories
+    } catch(e) {
         loadDefaultCategories();
     }
 }
 
-// Fallback function to load default categories
 function loadDefaultCategories() {
-    console.log('Loading default categories...');
     const categoryGrid = document.querySelector('.category-grid');
     console.log('Category grid found:', categoryGrid);
     
