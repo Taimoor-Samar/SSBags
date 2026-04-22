@@ -116,11 +116,20 @@ async function loadCategoriesForHome() {
         const response = await fetch(`${API_BASE}/categories`);
         const data = await response.json();
         if (data.categories && data.categories.length > 0) {
+            // Proper bag images per category
+            const catImages = {
+                'Primary School Bags':       'https://images.unsplash.com/photo-1529675496732-96b679f04ffe?auto=format&fit=crop&w=500&q=80',
+                'Secondary School Bags':     'https://images.unsplash.com/photo-1567427018141-0584cfcbf1b8?auto=format&fit=crop&w=500&q=80',
+                'College & University Bags': 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80',
+                'Trolley School Bags':       'https://images.unsplash.com/photo-1581592149-5e687a77e2fe?auto=format&fit=crop&w=500&q=80',
+                'Pencil Cases & Pouches':    'https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=500&q=80'
+            };
+            const fallbackImg = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80';
             categoryGrid.innerHTML = '';
             data.categories.forEach(category => {
                 const categoryCard = document.createElement('div');
                 categoryCard.className = 'cat-card';
-                const imageUrl = category.image_url || `https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80`;
+                const imageUrl = category.image_url || catImages[category.name] || fallbackImg;
                 categoryCard.innerHTML = `<img src="${imageUrl}" alt="${category.name}"><div class="cat-info"><h3>${category.name}</h3></div>`;
                 categoryCard.onclick = () => {
                     const filter = document.getElementById('category-filter');
@@ -306,13 +315,13 @@ function displayProducts(items) {
         return;
     }
 
-    // Category-based fallback images
+    // Category-based fallback images - proper school bag photos
     const categoryImages = {
-        'Primary School Bags': 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80',
-        'Secondary School Bags': 'https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&w=500&q=80',
-        'College & University Bags': 'https://images.unsplash.com/photo-1498557850523-fd3d118b962e?auto=format&fit=crop&w=500&q=80',
-        'Trolley School Bags': 'https://images.unsplash.com/photo-1581592149-5e687a77e2fe?auto=format&fit=crop&w=500&q=80',
-        'Pencil Cases & Pouches': 'https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=500&q=80'
+        'Primary School Bags':       'https://images.unsplash.com/photo-1529675496732-96b679f04ffe?auto=format&fit=crop&w=500&q=80',
+        'Secondary School Bags':     'https://images.unsplash.com/photo-1567427018141-0584cfcbf1b8?auto=format&fit=crop&w=500&q=80',
+        'College & University Bags': 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80',
+        'Trolley School Bags':       'https://images.unsplash.com/photo-1581592149-5e687a77e2fe?auto=format&fit=crop&w=500&q=80',
+        'Pencil Cases & Pouches':    'https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=500&q=80'
     };
     const defaultImg = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80';
 
