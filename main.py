@@ -1,3 +1,4 @@
+# Vercel Trigger Commit (Force update!)
 from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
