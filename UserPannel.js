@@ -298,7 +298,7 @@ async function fetchProducts() {
 }
 
 function displayProducts(items) {
-    const list = document.getElementById('products-grid');
+    const list = document.getElementById('products-list');
     if (!list) return;
 
     if (items.length === 0) {
@@ -306,14 +306,31 @@ function displayProducts(items) {
         return;
     }
 
-    list.innerHTML = items.map(product => `
+    // Category-based fallback images
+    const categoryImages = {
+        'Primary School Bags': 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80',
+        'Secondary School Bags': 'https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&w=500&q=80',
+        'College & University Bags': 'https://images.unsplash.com/photo-1498557850523-fd3d118b962e?auto=format&fit=crop&w=500&q=80',
+        'Trolley School Bags': 'https://images.unsplash.com/photo-1581592149-5e687a77e2fe?auto=format&fit=crop&w=500&q=80',
+        'Pencil Cases & Pouches': 'https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=500&q=80'
+    };
+    const defaultImg = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80';
+
+    list.innerHTML = items.map(product => {
+        let imgSrc = defaultImg;
+        if (product.images && product.images.length > 0) {
+            imgSrc = product.images[0];
+        } else if (product.image) {
+            imgSrc = product.image;
+        } else if (product.category && categoryImages[product.category]) {
+            imgSrc = categoryImages[product.category];
+        }
+
+        return `
         <div class="product-card">
             <div class="product-image-wrapper">
-                ${product.images && product.images.length > 0 ?
-                    `<img src="${product.images[0]}" style="width:100%;height:100%;object-fit:cover;" alt="${product.name}" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'100\\' height=\\'100\\'%3E%3Crect fill=\\'%23ddd\\' width=\\'100\\' height=\\'100\\'/%3E%3Ctext x=\\'50\\' y=\\'50\\' text-anchor=\\'middle\\' dy=\\'.3em\\' fill=\\'%23999\\'%3EProduct%3C/text%3E%3C/svg%3E';">` :
-                    (product.image ?
-                    `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;" alt="${product.name}">` :
-                    `<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ddd' width='100' height='100'/%3E%3Ctext x='50' y='50' text-anchor='middle' dy='.3em' fill='%23999'%3EProduct%3C/text%3E%3C/svg%3E" style="width:100%;height:100%;" alt="${product.name}">`)}
+                <img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;" alt="${product.name}"
+                     onerror="this.src='${defaultImg}'">
                 <div class="add-to-cart-overlay" onclick="addToCart(${product.id})">
                     ADD TO CART
                 </div>
@@ -322,8 +339,8 @@ function displayProducts(items) {
                 <h3>${product.name}</h3>
                 <p class="product-price">Rs. ${product.price.toLocaleString()}</p>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     if (typeof feather !== 'undefined') {
         feather.replace();
