@@ -399,47 +399,29 @@ async def upload_product_images(product_id: int, files: List[UploadFile] = File(
     cursor = conn.cursor()
     
     ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp'}
-    import imghdr
+    import base64
 
     try:
         for i, file in enumerate(files):
             # Read file contents
             contents = await file.read()
             
-            # Validate magic bytes for true file type (not just content-type header)
-            image_type = imghdr.what(None, h=contents)
+            # Validate extension only (imghdr removed in Python 3.11+)
+            ext = file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+            if ext not in ALLOWED_EXTENSIONS:
+                raise HTTPException(status_code=400, detail=f"File {i+1}: only JPG, PNG, WebP allowed.")
             
-            # Validate extension
-            ext = file.filename.split('.')[-1].lower()
-            if ext not in ALLOWED_EXTENSIONS or image_type not in ALLOWED_EXTENSIONS:
-                raise HTTPException(status_code=400, detail=f"File {i+1} is not a valid image. Only JPG, PNG, and WebP are allowed.")
-            
-            # Generate secure, unique filename
-            filename = f"{uuid.uuid4().hex}.{ext}"
-            filepath = os.path.join(UPLOAD_DIR, filename)
-            
-            # Save file to temp directory
-            with open(filepath, "wb") as f:
-                f.write(contents)
-            
-            # Store base64 data URL in database so image persists
-            import base64
-            mime = 'image/jpeg' if ext in ('jpg','jpeg') else f'image/{ext}'
+            # Store as base64 data URL in database (no filesystem needed)
+            mime = 'image/jpeg' if ext in ('jpg', 'jpeg') else f'image/{ext}'
             b64 = base64.b64encode(contents).decode('utf-8')
             image_url = f"data:{mime};base64,{b64}"
-            is_primary = (i == 0)  # First image is primary
+            is_primary = (i == 0)
             
             cursor.execute(
                 "INSERT INTO product_images (product_id, image_url, is_primary, sort_order) VALUES (%s, %s, %s, %s)",
                 (product_id, image_url, is_primary, i)
             )
-            uploaded_images.append(image_url)
-        
-        # Update image count
-        cursor.execute(
-            "UPDATE products SET image_count = (SELECT COUNT(*) FROM product_images WHERE product_id = %s) WHERE id = %s",
-            (product_id, product_id)
-        )
+            uploaded_images.append(f"/api/products/{product_id}/image/{i}")
         
         conn.commit()
         return {"message": f"{len(uploaded_images)} images uploaded successfully", "image_urls": uploaded_images}
