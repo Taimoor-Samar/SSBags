@@ -119,7 +119,7 @@ async function loadCategoriesForHome() {
             categoryGrid.innerHTML = '';
             data.categories.forEach(category => {
                 const categoryCard = document.createElement('div');
-                categoryCard.className = 'category-card fade-in';
+                categoryCard.className = 'cat-card';
                 const imageUrl = category.image_url || `https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80`;
                 categoryCard.innerHTML = `<img src="${imageUrl}" alt="${category.name}"><div class="cat-info"><h3>${category.name}</h3></div>`;
                 categoryCard.onclick = () => {
@@ -415,6 +415,33 @@ function displayOrders(orders) {
             </div>
         </div>
     `).join('');
+}
+
+// ============ WHATSAPP ORDER ============
+function proceedToOrder() {
+    if (cart.length === 0) {
+        showToast('Your cart is empty! Add products first.', 'error');
+        return;
+    }
+
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const delivery = subtotal >= 5000 ? 0 : 250;
+    const total = subtotal + delivery;
+
+    let message = `*New Order - S.S BAGS* 🛍️\n\n`;
+    message += `*Order Items:*\n`;
+    cart.forEach(item => {
+        message += `• ${item.name} x${item.quantity} = Rs. ${(item.price * item.quantity).toLocaleString()}\n`;
+    });
+    message += `\n*Subtotal:* Rs. ${subtotal.toLocaleString()}`;
+    message += `\n*Delivery:* ${delivery === 0 ? 'FREE' : 'Rs. ' + delivery}`;
+    message += `\n*Total:* Rs. ${total.toLocaleString()}`;
+    message += `\n\nPayment: Cash on Delivery`;
+
+    const WHATSAPP_NUMBER = '923150024508';
+    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+    showToast('Redirecting to WhatsApp...', 'success');
 }
 
 // ============ WHATSAPP REDIRECT ============
