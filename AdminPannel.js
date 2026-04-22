@@ -297,9 +297,12 @@ function clearProductForm() {
     document.getElementById('product-price').value = '';
     document.getElementById('product-stock').value = '';
     document.getElementById('product-category').value = '';
-    document.getElementById('product-color').value = '';
-    document.getElementById('product-material').value = '';
-    document.getElementById('product-size').value = '';
+    const colorInput = document.getElementById('product-color');
+    if (colorInput) colorInput.value = '';
+    const materialInput = document.getElementById('product-material');
+    if (materialInput) materialInput.value = '';
+    const sizeInput = document.getElementById('product-size');
+    if (sizeInput) sizeInput.value = '';
     const imageInput = document.getElementById('product-images');
     if (imageInput) imageInput.value = '';
     const imgPreview = document.getElementById('image-preview-container');
@@ -505,9 +508,12 @@ async function saveProduct() {
     const price = parseFloat(document.getElementById('product-price').value);
     const stock = parseInt(document.getElementById('product-stock').value);
     const category = document.getElementById('product-category').value;
-    const color = document.getElementById('product-color').value.trim();
-    const material = document.getElementById('product-material').value.trim();
-    const size = document.getElementById('product-size').value.trim();
+    const colorInput = document.getElementById('product-color');
+    const color = colorInput ? colorInput.value.trim() : '';
+    const materialInput = document.getElementById('product-material');
+    const material = materialInput ? materialInput.value.trim() : '';
+    const sizeInput = document.getElementById('product-size');
+    const size = sizeInput ? sizeInput.value.trim() : '';
     const imageInput = document.getElementById('product-images');
     const imageFiles = imageInput ? imageInput.files : [];
         
