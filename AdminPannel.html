@@ -45,7 +45,13 @@
                     <img src="Images/logo.jpg" alt="S.S BAGS" class="logo-img">
                     <span>Admin Suite</span>
                 </div>
-                <ul class="nav-menu">
+                <!-- Hamburger Button for Mobile -->
+                <button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="mobile-nav-menu">
                     <li><a href="#" onclick="showAdminSection('dashboard', event)" class="active menu-item">Dashboard</a></li>
                     <li><a href="#" onclick="showAdminSection('products', event)" class="menu-item">Products</a></li>
                     <li><a href="#" onclick="showAdminSection('orders', event)" class="menu-item">Orders</a></li>

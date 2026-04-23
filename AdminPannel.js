@@ -1,6 +1,6 @@
 // API base URL - configured for production/development
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
-    ? 'http://localhost:8000/api' 
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:8000/api'
     : '/api';  // Use relative path for production
 let adminToken = localStorage.getItem('admin_token') || null;
 let currentOrderId = null;
@@ -13,32 +13,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
-    
+
     // Check for existing admin session
     if (adminToken) {
         document.getElementById('login-section').style.display = 'none';
         document.getElementById('admin-section').style.display = 'flex';
         loadDashboard();
     }
-    
+
     // Add enter key support for login
     const emailInput = document.getElementById('admin-email');
     const passwordInput = document.getElementById('admin-password');
-    
+
     if (emailInput && passwordInput) {
         emailInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 passwordInput.focus();
             }
         });
-        
+
         passwordInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 adminLogin();
             }
         });
     }
-    
+
     // Add event listener for image file input
     const imageInput = document.getElementById('product-images');
     if (imageInput) {
@@ -51,7 +51,7 @@ function showError(message) {
     const errorElement = document.getElementById('login-error');
     errorElement.textContent = message;
     errorElement.classList.add('show');
-    
+
     // Auto hide after 5 seconds
     setTimeout(() => {
         errorElement.classList.remove('show');
@@ -67,7 +67,7 @@ function setLoading(loading) {
     const loginBtn = document.getElementById('login-btn');
     const emailInput = document.getElementById('admin-email');
     const passwordInput = document.getElementById('admin-password');
-    
+
     if (loading) {
         loginBtn.classList.add('loading');
         loginBtn.disabled = true;
@@ -90,7 +90,7 @@ function validateEmail(email) {
 
 async function adminLogin() {
     hideError();
-    
+
     const email = document.getElementById('admin-email').value.trim();
     const password = document.getElementById('admin-password').value;
 
@@ -100,19 +100,19 @@ async function adminLogin() {
         document.getElementById('admin-email').focus();
         return;
     }
-    
+
     if (!validateEmail(email)) {
         showError('Please enter a valid email address');
         document.getElementById('admin-email').focus();
         return;
     }
-    
+
     if (!password) {
         showError('Please enter your password');
         document.getElementById('admin-password').focus();
         return;
     }
-    
+
     if (password.length < 6) {
         showError('Password must be at least 6 characters long');
         document.getElementById('admin-password').focus();
@@ -129,7 +129,7 @@ async function adminLogin() {
         });
 
         const data = await response.json();
-        
+
         if (response.ok) {
             adminToken = data.token;
             localStorage.setItem('admin_token', adminToken);
@@ -147,7 +147,7 @@ async function adminLogin() {
             } else {
                 showError(data.detail || 'Login failed. Please try again.');
             }
-            
+
             // Clear password field on error
             document.getElementById('admin-password').value = '';
             document.getElementById('admin-password').focus();
@@ -172,7 +172,7 @@ function adminLogout() {
     document.getElementById('admin-email').value = '';
     document.getElementById('admin-password').value = '';
     hideError();
-    
+
     // Clear any sensitive data from memory
     if (performance.clearResourceTimings) {
         performance.clearResourceTimings();
@@ -184,14 +184,33 @@ function getAuthHeader() {
 }
 
 // ============ NAVIGATION ============
+function toggleMobileMenu() {
+    const menu = document.getElementById('mobile-nav-menu');
+    const btn = document.getElementById('hamburger-btn');
+    if (menu && btn) {
+        menu.classList.toggle('mobile-open');
+        btn.classList.toggle('open');
+    }
+}
+
+function closeMobileMenu() {
+    const menu = document.getElementById('mobile-nav-menu');
+    const btn = document.getElementById('hamburger-btn');
+    if (menu) menu.classList.remove('mobile-open');
+    if (btn) btn.classList.remove('open');
+}
+
 function showAdminSection(sectionId, event) {
     if (event) {
         event.preventDefault();
     }
-    
+
+    // Close mobile menu when a section is selected
+    closeMobileMenu();
+
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
     document.getElementById(sectionId).classList.add('active');
-    
+
     document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
     if (event && event.target) {
         event.target.classList.add('active');
@@ -272,10 +291,10 @@ async function loadCategories() {
     try {
         const response = await fetch(`${API_BASE}/categories`, { headers: getAuthHeader() });
         const data = await response.json();
-        
+
         const categorySelect = document.getElementById('product-category');
         categorySelect.innerHTML = '<option value="">Select Category</option>';
-        
+
         if (data.categories && data.categories.length > 0) {
             data.categories.forEach(category => {
                 const option = document.createElement('option');
@@ -323,7 +342,7 @@ async function loadProducts() {
 
 function displayProductsTable(products) {
     const tbody = document.getElementById('products-table-body');
-    
+
     if (products.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6">No products found</td></tr>';
         return;
@@ -358,7 +377,7 @@ function editProduct(productId) {
     document.getElementById('product-material').value = product.material || '';
     document.getElementById('product-size').value = product.size || '';
     document.getElementById('product-form').style.display = 'block';
-    
+
     // Load existing images if any
     loadProductImages(productId);
 }
@@ -368,10 +387,10 @@ async function loadProductImages(productId) {
     try {
         const response = await fetch(`${API_BASE}/products/${productId}/images`);
         const data = await response.json();
-        
+
         const container = document.getElementById('image-preview-container');
         container.innerHTML = ''; // Clear existing previews
-        
+
         data.images.forEach(image => {
             const previewItem = document.createElement('div');
             previewItem.className = 'image-preview-item';
@@ -389,13 +408,13 @@ async function loadProductImages(productId) {
 // Remove product image
 async function removeProductImage(productId, imageId) {
     if (!confirm('Are you sure you want to delete this image?')) return;
-    
+
     try {
         const response = await fetch(`${API_BASE}/products/${productId}/images/${imageId}`, {
             method: 'DELETE',
             headers: getAuthHeader()
         });
-        
+
         if (response.ok) {
             alert('Image deleted successfully');
             loadProductImages(productId); // Reload images
@@ -411,16 +430,16 @@ async function removeProductImage(productId, imageId) {
 function handleImageSelection(event) {
     const files = event.target.files;
     const container = document.getElementById('image-preview-container');
-    
+
     // Clear existing previews
     container.innerHTML = '';
-    
+
     // Show preview for each selected file
     Array.from(files).forEach((file, index) => {
         if (index >= 5) return; // Limit to 5 images
-        
+
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             const previewItem = document.createElement('div');
             previewItem.className = 'image-preview-item';
             previewItem.innerHTML = `
@@ -443,35 +462,35 @@ function removeImagePreview(button) {
 async function uploadProductImages(productId) {
     const fileInput = document.getElementById('product-images');
     const files = fileInput.files;
-    
+
     if (files.length === 0) return;
-    
+
     if (files.length > 5) {
         alert('Maximum 5 images allowed per upload');
         return;
     }
-    
+
     // Check file sizes before uploading
     const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     for (let i = 0; i < files.length; i++) {
         if (files[i].size > maxSize) {
-            alert(`File ${i+1}: ${files[i].name} is too large. Maximum size is 5MB.`);
+            alert(`File ${i + 1}: ${files[i].name} is too large. Maximum size is 5MB.`);
             return;
         }
     }
-    
+
     // Show loading indicator
     const submitBtn = document.querySelector('#product-form .btn-primary');
     const originalText = submitBtn.textContent;
     submitBtn.textContent = 'Uploading...';
     submitBtn.disabled = true;
-    
+
     // Create FormData to send files
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i]);
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/products/${productId}/images`, {
             method: 'POST',
@@ -480,9 +499,9 @@ async function uploadProductImages(productId) {
             },
             body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             alert(result.message || `${files.length} images uploaded successfully`);
             // Clear the file input
@@ -516,17 +535,17 @@ async function saveProduct() {
     const size = sizeInput ? sizeInput.value.trim() : '';
     const imageInput = document.getElementById('product-images');
     const imageFiles = imageInput ? imageInput.files : [];
-        
+
     // Convert category name to category_id
     const categorySelect = document.getElementById('product-category');
     const selectedOption = categorySelect.options[categorySelect.selectedIndex];
     const categoryId = selectedOption.dataset.id || categorySelect.value; // Fallback to value if dataset.id not available
-        
+
     if (!name || !description || !price || stock < 0 || !category) {
         alert('All required fields must be filled');
         return;
     }
-        
+
     // Show loading indicator
     const submitBtn = document.querySelector('#product-form .btn-primary');
     const originalText = submitBtn.textContent;
@@ -552,12 +571,12 @@ async function saveProduct() {
         if (response.ok) {
             const result = await response.json();
             const productId = id || result.id;
-            
+
             // If there are image files to upload, upload them
             if (imageFiles.length > 0) {
                 await uploadProductImages(productId);
             }
-            
+
             alert('Product saved successfully');
             clearProductForm();
             document.getElementById('product-form').style.display = 'none';
@@ -609,7 +628,7 @@ async function loadOrders() {
 
 function displayOrdersTable(orders) {
     const tbody = document.getElementById('orders-table-body');
-    
+
     if (orders.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6">No orders found</td></tr>';
         return;
@@ -741,7 +760,7 @@ async function loadCustomers() {
 
 function displayCustomersTable(customers) {
     const tbody = document.getElementById('customers-table-body');
-    
+
     if (customers.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6">No customers found</td></tr>';
         return;

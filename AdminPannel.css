@@ -478,19 +478,102 @@ footer {
     position: relative;
 }
 
+/* ============ HAMBURGER BUTTON ============ */
+.hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.hamburger:hover {
+    background: #f1f5f9;
+}
+
+.hamburger span {
+    display: block;
+    width: 24px;
+    height: 2.5px;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.hamburger.open span:nth-child(1) {
+    transform: translateY(7.5px) rotate(45deg);
+}
+
+.hamburger.open span:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+    transform: translateY(-7.5px) rotate(-45deg);
+}
+
 /* ============ RESPONSIVE ============ */
 @media (max-width: 1024px) {
+    .hamburger {
+        display: flex;
+    }
+
     .navbar .nav-menu {
         display: none;
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        border-bottom: 2px solid var(--secondary);
+        padding: 12px 16px;
+        gap: 4px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        z-index: 999;
+    }
+
+    .navbar .nav-menu.mobile-open {
+        display: flex;
+    }
+
+    .navbar .container {
+        position: relative;
+    }
+
+    .nav-menu a {
+        display: block;
+        padding: 12px 16px;
+        border-radius: 10px;
+        font-size: 1rem;
     }
 }
 
 @media (max-width: 640px) {
     .login-box {
-        padding: 32px;
+        padding: 32px 24px;
     }
-    
+
     .page-header h1 {
-        font-size: 1.8rem;
+        font-size: 1.6rem;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .feature-card {
+        padding: 20px 16px;
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
     }
 }
