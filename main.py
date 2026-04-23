@@ -245,14 +245,15 @@ async def get_products():
     
     try:
         cursor.execute(
-            "SELECT p.id, p.name, p.description, p.price, p.stock, p.category, p.category_id, p.color, p.material, p.size, p.created_at, (SELECT STRING_AGG(image_url, ',') FROM product_images WHERE product_id = p.id) as image_urls FROM products p WHERE p.stock > 0"
+            "SELECT p.id, p.name, p.description, p.price, p.stock, p.category, p.category_id, p.color, p.material, p.size, p.created_at, (SELECT STRING_AGG(image_url, '|||') FROM product_images WHERE product_id = p.id) as image_urls FROM products p WHERE p.stock > 0"
         )
         products = cursor.fetchall()
         
         # Process the results to convert image_urls to an array
+        # NOTE: We use '|||' as separator because base64 image URLs contain commas
         for product in products:
             if product['image_urls']:
-                product['images'] = product['image_urls'].split(',')
+                product['images'] = product['image_urls'].split('|||')
             else:
                 product['images'] = []
             # Remove the temporary image_urls field
